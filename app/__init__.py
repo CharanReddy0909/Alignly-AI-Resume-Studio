@@ -1,0 +1,1 @@
+"""Alignly Resume Studio backend."""
