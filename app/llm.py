@@ -76,9 +76,26 @@ async def improve(req: EnhanceRequest) -> dict[str, str]:
                 response.raise_for_status()
                 payload = response.json()
                 text = "".join(part.get("text", "") for part in payload["candidates"][0]["content"]["parts"])
-        except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
-            # Never include remote error bodies or the secret key in messages/logs.
-            raise HTTPException(502, detail=f"Gemini request failed ({type(exc).__name__}). Check API key, model access, quota, or internet connection.") from exc
+        except httpx.HTTPStatusError as exc:
+    status_code = exc.response.status_code
+
+    try:
+        error_status = exc.response.json().get(
+            "error", {}
+        ).get("status", "UNKNOWN")
+    except (ValueError, AttributeError):
+        error_status = "UNKNOWN"
+
+    raise HTTPException(
+        status_code=502,
+        detail=f"Gemini API returned HTTP {status_code} ({error_status})."
+    ) from exc
+
+except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
+    raise HTTPException(
+        status_code=502,
+        detail=f"Gemini request failed ({type(exc).__name__})."
+    ) from exc
     else:
         model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
         base = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
